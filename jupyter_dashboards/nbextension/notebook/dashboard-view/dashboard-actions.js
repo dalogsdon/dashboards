@@ -2,8 +2,6 @@
  * Copyright (c) Jupyter Development Team.
  * Distributed under the terms of the Modified BSD License.
  */
-/* global console, requirejs */
-
 /**
  * This module handles dashboard-view menu and toolbar creation and actions.
  */
@@ -22,43 +20,67 @@ define([
 ) {
     'use strict';
 
-    var STATE_NOTEBOOK = 'nb';
-    var STATE_DASHBOARD_AUTH = 'auth';
-    var STATE_DASHBOARD_VIEW = 'view';
-    var dashboardState = STATE_NOTEBOOK;
-
-    var VIEW_BTN_IDX = {};
-    VIEW_BTN_IDX[STATE_NOTEBOOK] = 1;
-    VIEW_BTN_IDX[STATE_DASHBOARD_AUTH] = 2;
-    VIEW_BTN_IDX[STATE_DASHBOARD_VIEW] = 3;
-
-    var enterDbModeCallback;
-    var exitDbModeCallback;
-    var showAllCallback;
-    var showAllStackedCallback;
-    var hideAllCallback;
+    var STATE = {
+        NOTEBOOK: 'nb',
+        DASHBOARD_AUTH_GRID: 'db-auth-grid',
+        DASHBOARD_AUTH_REPORT: 'db-auth-report',
+        DASHBOARD_VIEW: 'db-view'
+    };
+    var currentState = STATE.NOTEBOOK;
+    var dbViewToolbarBtnsId = 'urth-dashboard-view-toolbar-buttons';
     var scrollToBottom;
+    var opts;
+    var isHeaderVisible = true;
+    var isToolbarVisible = true;
+    var toolbarBtns = [
+        {
+            help: 'Notebook view. Edit the code.',
+            icon: 'fa-code',
+            state: STATE.NOTEBOOK
+        },
+        {
+            help: 'Dashboard Grid Layout. Size and position dashboard cells in a grid.',
+            icon: 'fa-th-large',
+            state: STATE.DASHBOARD_AUTH_GRID
+        },
+        {
+            help: 'Dashboard Report Layout. Display dashboard cells in a list.',
+            icon: 'fa-bars',
+            state: STATE.DASHBOARD_AUTH_REPORT
+        },
+        {
+            help: 'Dashboard Preview. Preview the dashboard.',
+            icon: 'fa-dashboard',
+            state: STATE.DASHBOARD_VIEW
+        }
+    ];
 
-    function queryState() {
+    function setStateFromQueryString() {
+        // set 'Dashboard View' state if 'dashboard' query parameter is set
         var idx = window.location.search.slice(1).split(/[&=]/).indexOf('dashboard');
         if (idx !== -1) {
-            // view-only mode
-            toggleDashboardMode(STATE_DASHBOARD_VIEW);
+            setDashboardState(STATE.DASHBOARD_VIEW);
         }
     }
 
-    function toggleDashboardMode(newState) {
-        if (dashboardState === newState) {
-            // nothing to do; ignore
+    function setDashboardState(newState) {
+        if (newState === currentState) {
+            // no state change; ignore
             return;
         }
-        if (newState === STATE_NOTEBOOK) {
-            exitDashboardMode();
-        } else {
-            enterDashboardMode(newState, dashboardState /* prev state */);
+
+        switch (newState) {
+            case STATE.NOTEBOOK:
+                exitDashboardMode();
+                break;
+            case STATE.DASHBOARD_AUTH_GRID:
+            case STATE.DASHBOARD_AUTH_REPORT:
+                enterDashboardMode(newState, currentState /* prev state */);
+                break;
         }
-        setViewButtonEnabled(newState);
-        dashboardState = newState;
+
+        setViewButtonPressed(newState);
+        currentState = newState;
     }
 
     function exitDashboardMode() {
@@ -67,10 +89,10 @@ define([
         $('#urth-notebook-view').addClass('selected');
         $('#urth-dashboard-auth, #urth-dashboard-view').removeClass('selected');
         $('#urth-dashboard-show-all, #urth-dashboard-show-all-stacked, #urth-dashboard-hide-all').addClass('disabled');
-        exitDbModeCallback();
+        opts.exitDbModeCallback();
         updateUrlState(false);
-        toggleHeaders(true); // enable header and toolbar
-        enableCodeMirror(true);
+        setHeaderVisibility(true); // enable header and toolbar
+        setCodeMirrorEnabled(true);
 
         // restore scrolling behavior
         IPython.Notebook.prototype.scroll_to_bottom = scrollToBottom;
@@ -79,38 +101,34 @@ define([
 
     function enterDashboardMode(newState, prevState) {
         // Add a class to the document body so our styles can take effect
-        $('body').toggleClass('view-only', newState === STATE_DASHBOARD_VIEW);
+        $('body').toggleClass('view-only', newState === STATE.DASHBOARD_VIEW);
 
-        // style menus accordingly
-        $('#urth-notebook-view').removeClass('selected');
-        $('#urth-dashboard-auth').toggleClass('selected', newState === STATE_DASHBOARD_AUTH);
-        $('#urth-dashboard-view').toggleClass('selected', newState === STATE_DASHBOARD_VIEW);
-        $('#urth-dashboard-show-all, #urth-dashboard-show-all-stacked, #urth-dashboard-hide-all').toggleClass('disabled', newState === STATE_DASHBOARD_VIEW);
+        // style menus according to state
+        $('#urth-dashboard-show-all, #urth-dashboard-show-all-stacked, #urth-dashboard-hide-all').toggleClass('disabled', newState === STATE.DASHBOARD_VIEW);
+        $('#view_menu [data-db-state]').each(function() {
+            $(this).toggleClass('selected', newState === $(this).attr('data-db-state'));
+        });
 
-        // disable header and toolbar as necessary
-        toggleHeaders(newState === STATE_DASHBOARD_AUTH);
-
-        enableCodeMirror(false);
-
-        enterDbModeCallback(newState === STATE_DASHBOARD_AUTH /* doEnableGrid */);
-        updateUrlState(newState === STATE_DASHBOARD_VIEW);
+        setHeaderVisibility(newState !== STATE.DASHBOARD_VIEW);
+        setCodeMirrorEnabled(false);
+        opts.enterDbModeCallback(
+            newState !== STATE.DASHBOARD_VIEW, // doEnableGrid
+            newState === STATE.DASHBOARD_AUTH_REPORT ? 1 : 12 // numCols
+        );
+        updateUrlState(newState === STATE.DASHBOARD_VIEW);
 
         // disable scroll to bottom of notebook
         scrollToBottom = IPython.Notebook.prototype.scroll_to_bottom;
         IPython.Notebook.prototype.scroll_to_bottom = function() {};
     }
 
-    function setViewButtonEnabled(state) {
-        var idx = VIEW_BTN_IDX[state];
-        $('#urth-dashboard-view-toolbar-buttons > button:nth-of-type(' + idx + ')')
+    function setViewButtonPressed(state) {
+        $('#' + dbViewToolbarBtnsId + ' > button[data-jupyter-action="urth.' + state + '"]')
             .addClass('active')
             .siblings().removeClass('active');
     }
 
-    var isHeaderVisible = true;
-    var isToolbarVisible = true;
-
-    function toggleHeaders(doShow) {
+    function setHeaderVisibility(doShow) {
         // if hiding, save current state
         if (!doShow) {
             isHeaderVisible = $('#header-container').is(':visible');
@@ -144,7 +162,7 @@ define([
     }
 
     // disable editting/focussing of CodeMirror content when in dashboard mode
-    function enableCodeMirror(doEnable) {
+    function setCodeMirrorEnabled(doEnable) {
         $('.CodeMirror').each(function() {
             this.CodeMirror.setOption('readOnly', doEnable ? false : 'nocursor');
         });
@@ -152,73 +170,52 @@ define([
 
     /*************************************/
     var DashboardActions = function(args) {
-        enterDbModeCallback = args.enterDashboardMode;
-        exitDbModeCallback = args.exitDashboardMode;
-        showAllCallback = args.showAll;
-        showAllStackedCallback = args.showAllStacked;
-        hideAllCallback = args.hideAll;
-
-        queryState();
+        opts = {
+            enterDbModeCallback: args.enterDashboardMode,
+            exitDbModeCallback: args.exitDashboardMode,
+            showAllCallback: args.showAll,
+            showAllStackedCallback: args.showAllStacked,
+            hideAllCallback: args.hideAll
+        };
+        setStateFromQueryString();
     };
 
     DashboardActions.prototype.addMenuItems = function() {
-        // View menu items
+        // Add view menu items and hook up click handlers to set state
         $('#view_menu').append('<li class="divider"/>', viewMenuTemplate);
-        $('#urth-notebook-view').click(toggleDashboardMode.bind(null, STATE_NOTEBOOK));
-        $('#urth-dashboard-auth').click(toggleDashboardMode.bind(null, STATE_DASHBOARD_AUTH));
-        $('#urth-dashboard-view').click(toggleDashboardMode.bind(null, STATE_DASHBOARD_VIEW));
+        $('#view_menu').find('[data-db-state]').click(function() {
+            setDashboardState($(this).attr('data-db-state'));
+        });
 
-        // initial selected menu item
-        if (dashboardState === STATE_NOTEBOOK) {
-            $('#urth-notebook-view').addClass('selected');
-        } else if (dashboardState === STATE_DASHBOARD_VIEW) {
-            $('#urth-dashboard-view').addClass('selected');
-        }
+        // initial selected view menu item
+        $('#view_menu [data-db-state="' + currentState + '"]').addClass('selected');
 
-        // Cell menu items
+        // Cell menu items to show/hide cells
         $('#cell_menu').append('<li class="divider"/>', subMenuTemplate);
-        $('#urth-dashboard-show-all').click(showAllCallback);
-        $('#urth-dashboard-show-all-stacked').click(showAllStackedCallback);
-        $('#urth-dashboard-hide-all').click(hideAllCallback);
+        $('#urth-dashboard-show-all').click(opts.showAllCallback);
+        $('#urth-dashboard-show-all-stacked').click(opts.showAllStackedCallback);
+        $('#urth-dashboard-hide-all').click(opts.showAllStackedCallback);
     };
 
     DashboardActions.prototype.addToolbarItems = function() {
-        // switch view group
-        var notebookView = {
-            help: 'Notebook view. Edit the code.',
-            icon: 'fa-code',
-            help_index: '',
-            handler: function() { toggleDashboardMode(STATE_NOTEBOOK); }
-        };
-        var layoutView = {
-            help: 'Dashboard Layout. Size and position dashboard cells.',
-            icon: 'fa-th-large',
-            help_index: '',
-            handler: function() { toggleDashboardMode(STATE_DASHBOARD_AUTH); }
-        };
-        var dashboardView = {
-            help: 'Dashboard Preview. Preview the dashboard.',
-            icon: 'fa-dashboard',
-            help_index: '',
-            handler: function() { toggleDashboardMode(STATE_DASHBOARD_VIEW); }
-        };
-
-        var a = IPython.keyboard_manager.actions.register(notebookView, 'notebook-view', 'urth');
-        var b = IPython.keyboard_manager.actions.register(layoutView, 'layout-view', 'urth');
-        var c = IPython.keyboard_manager.actions.register(dashboardView, 'dashboard-view', 'urth');
-
-        IPython.toolbar.add_buttons_group([a,b,c],
-                'urth-dashboard-view-toolbar-buttons');
-        $('#urth-dashboard-view-toolbar-buttons')
+        // button group to choose dashboard view
+        IPython.toolbar.add_buttons_group(toolbarBtns.map(function(btn) {
+            return IPython.keyboard_manager.actions.register({
+                help: btn.help,
+                icon: btn.icon,
+                handler: function() { setDashboardState(btn.state); }
+            }, btn.state, 'urth');
+        }), dbViewToolbarBtnsId);
+        $('#' + dbViewToolbarBtnsId)
             .addClass('urth-dashboard-toolbar-buttons')
             .prepend('<span class="navbar-text">View:</span>');
 
-        // activate the button corresponding to the current view
-        setViewButtonEnabled(dashboardState);
+        // set state of the button corresponding to the current view
+        setViewButtonPressed(currentState);
     };
 
     DashboardActions.prototype.switchToNotebook = function() {
-        toggleDashboardMode(STATE_NOTEBOOK);
+        setDashboardState(STATE.NOTEBOOK);
     };
 
     return DashboardActions;

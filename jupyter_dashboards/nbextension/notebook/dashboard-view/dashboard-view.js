@@ -56,13 +56,14 @@ define([
     // dashboard-actions depends on requirejs text plugin
     require(['./dashboard-actions'], function(DashboardActions) {
         var dbActions = new DashboardActions({
-            enterDashboardMode: function(doEnableGrid) {
+            enterDashboardMode: function(doEnableGrid, numCols) {
+                $('#notebook-container').toggleClass('db-report-layout', numCols === 1);
                 require(['./dashboard', 'text!./help.html'], function(Dashboard, helpTemplate) {
                     if (!dashboard) {
                         dashboard = Dashboard.create({
                             container: $('#notebook-container'),
                             scrollContainer: $('#site'),
-                            numCols: 12,
+                            numCols: numCols,
                             rowHeight: 20,
                             gridMargin: 10,
                             defaultCellWidth: 4,

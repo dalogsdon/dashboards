@@ -317,8 +317,8 @@ define([
         var $cell = $(cell).css({ visibility: 'hidden', display: 'block' });
 
         var constraints = {};
-        if(IPython.notebook.metadata.urth.dashboard.layoutStrategy === STACKED_STRATEGY) {
-          constraints = { width : this.opts.numCols};
+        if (IPython.notebook.metadata.urth.dashboard.layoutStrategy === STACKED_STRATEGY) {
+          constraints = { width : this.opts.numCols };
         }
         var dim = this._computeCellDimensions($cell, constraints);
 
@@ -685,7 +685,7 @@ define([
      * Move all cells into the dashboard view in a stacked layout
      */
     Dashboard.prototype.showAllCellsStacked = function() {
-        this._showAllCells(STACKED_STRATEGY, { 'width' : this.opts.numCols});
+        this._showAllCells(STACKED_STRATEGY, { width : this.opts.numCols });
     };
 
     /**

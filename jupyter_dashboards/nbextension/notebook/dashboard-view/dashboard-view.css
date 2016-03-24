@@ -40,6 +40,9 @@ body:not(.view-only) .grid-stack#notebook-container:hover {
 }
 
 /* Gridstack cells */
+.grid-stack.db-report-layout .grid-stack-item {
+    width: 100%;
+}
 .grid-stack .cell,
 .grid-stack .cell.selected {
     background: transparent;
