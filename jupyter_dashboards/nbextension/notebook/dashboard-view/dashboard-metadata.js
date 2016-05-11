@@ -131,6 +131,7 @@ define([
                 _updateCellMetadata(el, null);
             }
         });
+        _getDashboardMetadata().container_height = $('#notebook-container').outerHeight();
         IPython.notebook.set_dirty(true);
     }
 
